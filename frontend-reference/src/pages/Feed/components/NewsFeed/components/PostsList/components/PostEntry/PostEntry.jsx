@@ -5,13 +5,14 @@ import {
   MediaQueries,
   showNotAvailableToast,
 } from "../../../../../../../../utilities";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import InteractionCounter from "./components/InteractionCounter";
 import CommentsList from "./components/CommentsList/CommentsList";
 import PostActionButton from "./components/PostActionButton";
 import { ReactionButton, ReactionPicker } from "../../../../../../../../components";
 import { useReaction } from "../../../../../../../../hooks/useReaction";
 import { formatReactionCounts } from "../../../../../../../../constants/reactions";
+import HashtagText from "../../../../../../../../components/HashtagText";
 /**
  *
  * @param {Object} props
@@ -34,7 +35,6 @@ export default function PostEntry({
   // eslint-disable-next-line no-unused-vars
   const [showComments, setShowComments] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const refDivText = useRef(null);
 
   // Use custom hook for multi-reaction functionality with optimistic updates
   const {
@@ -47,11 +47,12 @@ export default function PostEntry({
     handleToggleReaction
   } = useReaction(objPost, objLoggedUser.strUserId);
 
-  useLayoutEffect(() => {
-    if (refDivText && refDivText.current) {
-      refDivText.current.innerText = objPost.strText; //sanitizeHTML(objPost.strText);
-    }
-  }, []);
+  // Handler for hashtag clicks
+  const handleHashtagClick = (hashtag) => {
+    // TODO: Navigate to hashtag feed page
+    console.log("View hashtag:", hashtag);
+    showNotAvailableToast(); // Temporary until hashtag feed is implemented
+  };
 
   let timeoutId = null;
 
@@ -147,10 +148,9 @@ export default function PostEntry({
           </svg>
         </button>
       </div>
-      <div
-        className=" px-4 text-[15px] text-color-text-darker font-normal leading-5"
-        ref={refDivText}
-      ></div>
+      <div className=" px-4 text-[15px] text-color-text-darker font-normal leading-5">
+        <HashtagText text={objPost.strText} onHashtagClick={handleHashtagClick} className="" />
+      </div>
       
       {/* Display post image if available */}
       {objPost.strMediaType === "photo" && objPost.strMediaURL ? (

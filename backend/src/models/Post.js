@@ -91,6 +91,14 @@ const postSchema = new mongoose.Schema(
     ],
     // Embedded comments
     comments: [commentSchema],
+    // Hashtags extracted from post text
+    hashtags: [
+      {
+        type: String,
+        lowercase: true,
+        trim: true,
+      },
+    ],
     // Counters (for performance - avoid counting arrays every time)
     viewCount: {
       type: Number,
@@ -112,6 +120,7 @@ const postSchema = new mongoose.Schema(
 postSchema.index({ user: 1, createdAt: -1 });
 postSchema.index({ createdAt: -1 });
 postSchema.index({ active: 1 });
+postSchema.index({ hashtags: 1 }); // For hashtag search
 
 // Virtual for like count (legacy - uses reactions array now)
 postSchema.virtual('likeCount').get(function () {

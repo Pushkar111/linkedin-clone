@@ -15,6 +15,8 @@ import {
   addComment,
   deleteComment,
   getUserPosts,
+  getPostsByHashtag,
+  getTrendingHashtags,
 } from '../controllers/postController.js';
 import { protect, optionalAuth } from '../middleware/auth.js';
 import {
@@ -48,6 +50,20 @@ router.post(
   validate,
   createPost
 );
+
+/**
+ * @route   GET /api/posts/hashtags/trending
+ * @desc    Get trending hashtags
+ * @access  Public
+ */
+router.get('/hashtags/trending', getTrendingHashtags);
+
+/**
+ * @route   GET /api/posts/hashtag/:tag
+ * @desc    Get posts by hashtag
+ * @access  Public
+ */
+router.get('/hashtag/:tag', getPostsByHashtag);
 
 /**
  * @route   GET /api/posts/user/:userId

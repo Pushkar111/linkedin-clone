@@ -120,6 +120,8 @@ export const adaptPostFromAPI = (apiPost) => {
     reactions: apiPost.reactions || [],
     reactionCount: apiPost.reactionCount || apiPost.reactions?.length || 0,
     reactionCounts: apiPost.reactionCounts || {},
+    // Hashtags
+    hashtags: apiPost.hashtags || [],
   };
 };
 
