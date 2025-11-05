@@ -11,6 +11,7 @@ import {
   updatePost,
   deletePost,
   toggleLike,
+  toggleReaction,
   addComment,
   deleteComment,
   getUserPosts,
@@ -95,8 +96,21 @@ router.delete(
 );
 
 /**
- * @route   POST /api/posts/:id/like
- * @desc    Toggle like on a post
+ * @route   POST /api/posts/:id/like-toggle
+ * @desc    Toggle like on a post (idempotent)
+ * @access  Private
+ */
+router.post(
+  '/:id/like-toggle',
+  protect,
+  objectIdValidation('id'),
+  validate,
+  toggleLike
+);
+
+/**
+ * @route   POST /api/posts/:id/like (DEPRECATED - use /like-toggle)
+ * @desc    Toggle like on a post (backward compatibility)
  * @access  Private
  */
 router.post(
@@ -105,6 +119,19 @@ router.post(
   objectIdValidation('id'),
   validate,
   toggleLike
+);
+
+/**
+ * @route   POST /api/posts/:id/react
+ * @desc    Toggle reaction on a post (LinkedIn-style multi-reactions)
+ * @access  Private
+ */
+router.post(
+  '/:id/react',
+  protect,
+  objectIdValidation('id'),
+  validate,
+  toggleReaction
 );
 
 /**

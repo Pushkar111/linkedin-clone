@@ -205,34 +205,144 @@ export const deletePost = asyncHandler(async (req, res) => {
 });
 
 /**
- * @route   POST /api/posts/:id/like
- * @desc    Toggle like on a post
+ * @route   POST /api/posts/:id/like-toggle
+ * @desc    Toggle like on a post (idempotent)
  * @access  Private
+ * @body    { requestId?: string }
+ * @response { success: true, liked: boolean, likeCount: number, post: Post, requestId?: string }
  */
 export const toggleLike = asyncHandler(async (req, res) => {
-  const post = await Post.findById(req.params.id);
+  // Accept requestId from body, header, or generate one
+  const requestId = req.body.requestId || req.headers['x-request-id'] || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const userId = req.user._id;
+  const postId = req.params.id;
+  
+  console.log(`[Like Toggle ${requestId}] Request received`, {
+    postId,
+    userId: userId.toString(),
+    timestamp: new Date().toISOString(),
+    source: req.body.requestId ? 'body' : req.headers['x-request-id'] ? 'header' : 'generated',
+  });
+
+  const post = await Post.findById(postId);
 
   if (!post) {
+    console.error(`[Like Toggle ${requestId}] Post not found`, { postId });
     res.status(404);
     throw new Error('Post not found');
   }
 
   if (!post.active) {
+    console.error(`[Like Toggle ${requestId}] Post inactive`, { postId });
     res.status(404);
     throw new Error('Post not found');
   }
 
-  // Toggle like
-  const isLiked = await post.toggleLike(req.user._id);
+  const wasLiked = post.likes.some(id => id.toString() === userId.toString());
+  console.log(`[Like Toggle ${requestId}] Current state`, {
+    postId,
+    wasLiked,
+    currentLikeCount: post.likeCount,
+  });
+
+  // Toggle like (idempotent operation with transaction)
+  const result = await post.toggleLike(userId, requestId);
+
+  console.log(`[Like Toggle ${requestId}] Success`, {
+    postId,
+    wasLiked,
+    isNowLiked: result.liked,
+    newLikeCount: result.likeCount,
+    action: result.liked ? 'LIKED' : 'UNLIKED',
+  });
 
   // Populate user data
   await post.populate('user', 'fullName profilePicURL email profile.headline');
 
+  // Return canonical state with requestId for client-side reconciliation
   res.status(200).json({
     success: true,
-    isLiked,
-    likeCount: post.likeCount,
+    liked: result.liked,
+    likeCount: result.likeCount,
     post,
+    requestId,
+  });
+});
+
+/**
+ * @route   POST /api/posts/:id/react
+ * @desc    Toggle reaction on a post (LinkedIn-style multi-reactions)
+ * @access  Private
+ * @body    { reactionType: string, requestId?: string }
+ * @response { success: true, reacted: boolean, reactionType: string|null, reactionCount: number, reactionCounts: object, post: Post, requestId?: string }
+ */
+export const toggleReaction = asyncHandler(async (req, res) => {
+  // Accept requestId from body, header, or generate one
+  const requestId = req.body.requestId || req.headers['x-request-id'] || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const userId = req.user._id;
+  const postId = req.params.id;
+  const { reactionType = 'like' } = req.body;
+  
+  console.log(`[Reaction Toggle ${requestId}] Request received`, {
+    postId,
+    userId: userId.toString(),
+    reactionType,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Validate reaction type
+  const validTypes = ['like', 'celebrate', 'support', 'funny', 'love', 'insightful', 'curious'];
+  if (!validTypes.includes(reactionType)) {
+    res.status(400);
+    throw new Error(`Invalid reaction type. Must be one of: ${validTypes.join(', ')}`);
+  }
+
+  const post = await Post.findById(postId);
+
+  if (!post) {
+    console.error(`[Reaction Toggle ${requestId}] Post not found`, { postId });
+    res.status(404);
+    throw new Error('Post not found');
+  }
+
+  if (!post.active) {
+    console.error(`[Reaction Toggle ${requestId}] Post inactive`, { postId });
+    res.status(404);
+    throw new Error('Post not found');
+  }
+
+  // Get current user's reaction
+  const currentReaction = post.reactions.find(r => r.user.toString() === userId.toString());
+  
+  console.log(`[Reaction Toggle ${requestId}] Current state`, {
+    postId,
+    currentReaction: currentReaction ? currentReaction.type : 'none',
+    totalReactions: post.reactions.length,
+  });
+
+  // Toggle reaction (idempotent operation with transaction)
+  const result = await post.toggleReaction(userId, reactionType, requestId);
+
+  console.log(`[Reaction Toggle ${requestId}] Success`, {
+    postId,
+    reacted: result.reacted,
+    reactionType: result.reactionType,
+    reactionCount: result.reactionCount,
+    reactionCounts: result.reactionCounts,
+  });
+
+  // Populate user data
+  await post.populate('user', 'fullName profilePicURL email profile.headline');
+
+  // Return canonical state with requestId for client-side reconciliation
+  res.status(200).json({
+    success: true,
+    reacted: result.reacted,
+    reactionType: result.reactionType,
+    reactionCount: result.reactionCount,
+    reactionCounts: result.reactionCounts,
+    post,
+    requestId,
   });
 });
 

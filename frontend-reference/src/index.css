@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url(./fonts.css);
+
+@layer base {
+  body {
+    @apply font-source-sans;
+  }
+}

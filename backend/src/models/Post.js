@@ -63,11 +63,30 @@ const postSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    // Array of user IDs who liked this post
+    // Array of user IDs who liked this post (legacy - kept for backward compatibility)
     likes: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
+      },
+    ],
+    // Reactions with types (LinkedIn-style multi-reactions)
+    reactions: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        type: {
+          type: String,
+          enum: ['like', 'celebrate', 'support', 'funny', 'love', 'insightful', 'curious'],
+          default: 'like',
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
     ],
     // Embedded comments
@@ -94,9 +113,29 @@ postSchema.index({ user: 1, createdAt: -1 });
 postSchema.index({ createdAt: -1 });
 postSchema.index({ active: 1 });
 
-// Virtual for like count
+// Virtual for like count (legacy - uses reactions array now)
 postSchema.virtual('likeCount').get(function () {
-  return this.likes ? this.likes.length : 0;
+  // Count all reactions (any type)
+  return this.reactions ? this.reactions.length : this.likes ? this.likes.length : 0;
+});
+
+// Virtual for reaction counts by type
+postSchema.virtual('reactionCounts').get(function () {
+  if (!this.reactions || this.reactions.length === 0) {
+    return {};
+  }
+  
+  const counts = {};
+  this.reactions.forEach(reaction => {
+    counts[reaction.type] = (counts[reaction.type] || 0) + 1;
+  });
+  
+  return counts;
+});
+
+// Virtual for total reaction count
+postSchema.virtual('reactionCount').get(function () {
+  return this.reactions ? this.reactions.length : 0;
 });
 
 // Virtual for comment count
@@ -113,27 +152,170 @@ postSchema.methods.incrementView = async function () {
 };
 
 /**
- * Toggle like on post
+ * Toggle reaction on post (idempotent operation using atomic MongoDB operations)
+ * Supports multi-reaction system like LinkedIn
  * @param {ObjectId} userId - User ID
- * @returns {Promise<boolean>} - true if liked, false if unliked
+ * @param {string} reactionType - Type of reaction ('like', 'celebrate', 'support', etc.)
+ * @param {string} requestId - Optional request ID for logging
+ * @returns {Promise<Object>} - { reacted: boolean, reactionType: string|null, reactionCount: number, reactionCounts: Object }
  */
-postSchema.methods.toggleLike = async function (userId) {
+postSchema.methods.toggleReaction = async function (userId, reactionType = 'like', requestId = '') {
   const userIdString = userId.toString();
-  const index = this.likes.findIndex(
-    (id) => id.toString() === userIdString
-  );
-
-  if (index > -1) {
-    // Unlike - remove user from likes array
-    this.likes.splice(index, 1);
-    await this.save();
-    return false;
-  } else {
-    // Like - add user to likes array
-    this.likes.push(userId);
-    await this.save();
-    return true;
+  
+  // Validate reaction type
+  const validTypes = ['like', 'celebrate', 'support', 'funny', 'love', 'insightful', 'curious'];
+  if (!validTypes.includes(reactionType)) {
+    throw new Error(`Invalid reaction type: ${reactionType}`);
   }
+  
+  // Check current state
+  const existingReaction = this.reactions.find(
+    (r) => r.user.toString() === userIdString
+  );
+  
+  let updatedPost;
+  
+  if (existingReaction) {
+    if (existingReaction.type === reactionType) {
+      // Same reaction - remove it (unreact)
+      if (requestId) {
+        console.log(`[Post.toggleReaction ${requestId}] Removing reaction`, {
+          postId: this._id.toString(),
+          userId: userIdString,
+          reactionType,
+          currentReactionCount: this.reactions.length,
+        });
+      }
+      
+      updatedPost = await mongoose.model('Post').findByIdAndUpdate(
+        this._id,
+        { $pull: { reactions: { user: userId } } },
+        { new: true }
+      );
+      
+      // Also sync with legacy likes array
+      await mongoose.model('Post').findByIdAndUpdate(
+        this._id,
+        { $pull: { likes: userId } }
+      );
+    } else {
+      // Different reaction - update it
+      if (requestId) {
+        console.log(`[Post.toggleReaction ${requestId}] Changing reaction`, {
+          postId: this._id.toString(),
+          userId: userIdString,
+          from: existingReaction.type,
+          to: reactionType,
+        });
+      }
+      
+      updatedPost = await mongoose.model('Post').findByIdAndUpdate(
+        this._id,
+        {
+          $pull: { reactions: { user: userId } },
+        },
+        { new: true }
+      );
+      
+      updatedPost = await mongoose.model('Post').findByIdAndUpdate(
+        this._id,
+        {
+          $push: {
+            reactions: {
+              user: userId,
+              type: reactionType,
+              createdAt: new Date(),
+            },
+          },
+        },
+        { new: true }
+      );
+    }
+  } else {
+    // No existing reaction - add new one
+    if (requestId) {
+      console.log(`[Post.toggleReaction ${requestId}] Adding new reaction`, {
+        postId: this._id.toString(),
+        userId: userIdString,
+        reactionType,
+        currentReactionCount: this.reactions.length,
+      });
+    }
+    
+    updatedPost = await mongoose.model('Post').findByIdAndUpdate(
+      this._id,
+      {
+        $push: {
+          reactions: {
+            user: userId,
+            type: reactionType,
+            createdAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    );
+    
+    // Also sync with legacy likes array
+    await mongoose.model('Post').findByIdAndUpdate(
+      this._id,
+      { $addToSet: { likes: userId } }
+    );
+  }
+  
+  if (!updatedPost) {
+    throw new Error('Post not found during reaction toggle');
+  }
+  
+  // Update current document instance
+  this.reactions = updatedPost.reactions;
+  this.likes = updatedPost.likes;
+  
+  // Get final state
+  const finalReaction = updatedPost.reactions.find(
+    (r) => r.user.toString() === userIdString
+  );
+  
+  // Calculate reaction counts
+  const reactionCounts = {};
+  updatedPost.reactions.forEach(reaction => {
+    reactionCounts[reaction.type] = (reactionCounts[reaction.type] || 0) + 1;
+  });
+  
+  if (requestId) {
+    console.log(`[Post.toggleReaction ${requestId}] Success`, {
+      postId: this._id.toString(),
+      reacted: !!finalReaction,
+      reactionType: finalReaction ? finalReaction.type : null,
+      reactionCount: updatedPost.reactions.length,
+      reactionCounts,
+    });
+  }
+  
+  // Return canonical state
+  return {
+    reacted: !!finalReaction,
+    reactionType: finalReaction ? finalReaction.type : null,
+    reactionCount: updatedPost.reactions.length,
+    reactionCounts,
+  };
+};
+
+/**
+ * Toggle like on post (legacy method - now uses reactions)
+ * Kept for backward compatibility
+ * @param {ObjectId} userId - User ID
+ * @param {string} requestId - Optional request ID for logging
+ * @returns {Promise<Object>} - { liked: boolean, likeCount: number }
+ */
+postSchema.methods.toggleLike = async function (userId, requestId = '') {
+  // Delegate to toggleReaction with 'like' type
+  const result = await this.toggleReaction(userId, 'like', requestId);
+  
+  return {
+    liked: result.reacted && result.reactionType === 'like',
+    likeCount: result.reactionCount,
+  };
 };
 
 /**
