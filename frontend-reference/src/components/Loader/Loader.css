@@ -1,0 +1,55 @@
+/**
+ * Loader Component Styles
+ */
+
+.loader-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background-color: #f3f2ef;
+}
+
+.loader-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.loader-spinner {
+  font-size: 3rem;
+  color: #0a66c2;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.loader-spinner i {
+  display: block;
+}
+
+.loader-message {
+  font-size: 0.875rem;
+  color: #666666;
+  font-weight: 500;
+  margin: 0;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+  .loader-container {
+    background-color: #1a1a1a;
+  }
+  
+  .loader-message {
+    color: #b3b3b3;
+  }
+}

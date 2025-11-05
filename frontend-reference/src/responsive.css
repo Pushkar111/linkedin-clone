@@ -1,0 +1,389 @@
+/**
+ * ============================================================================
+ * RESPONSIVE UTILITY STYLES
+ * ============================================================================
+ * 
+ * Global responsive utilities and fixes for the LinkedIn Clone application
+ * Ensures consistent responsive behavior across all components
+ */
+
+/* ============================================================================
+   BASE RESPONSIVE SETTINGS
+   ============================================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* ============================================================================
+   IMAGE RESPONSIVENESS
+   ============================================================================ */
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ============================================================================
+   CONTAINER UTILITIES
+   ============================================================================ */
+
+.container-responsive {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .container-responsive {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-responsive {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+/* ============================================================================
+   TEXT RESPONSIVENESS
+   ============================================================================ */
+
+.text-responsive {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* Prevent text overflow in containers */
+.text-truncate-responsive {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.text-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   MOBILE NAVIGATION SPACING
+   ============================================================================ */
+
+@media (max-width: 639px) {
+  .mobile-bottom-nav-spacing {
+    padding-bottom: 60px; /* Space for bottom mobile nav */
+  }
+}
+
+/* ============================================================================
+   CARD RESPONSIVENESS
+   ============================================================================ */
+
+.card-responsive {
+  border-radius: 0.5rem;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 639px) {
+  .card-responsive {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+}
+
+/* ============================================================================
+   FLEX & GRID UTILITIES
+   ============================================================================ */
+
+.flex-responsive {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .flex-responsive {
+    flex-direction: row;
+  }
+}
+
+.grid-responsive-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .grid-responsive-2 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+.grid-responsive-3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .grid-responsive-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-responsive-3 {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+/* ============================================================================
+   SPACING UTILITIES
+   ============================================================================ */
+
+.spacing-responsive-sm {
+  padding: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .spacing-responsive-sm {
+    padding: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .spacing-responsive-sm {
+    padding: 1.5rem;
+  }
+}
+
+.spacing-responsive-lg {
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .spacing-responsive-lg {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .spacing-responsive-lg {
+    padding: 2rem;
+  }
+}
+
+/* ============================================================================
+   BUTTON RESPONSIVENESS
+   ============================================================================ */
+
+.btn-responsive {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .btn-responsive {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.8125rem;
+  }
+}
+
+/* Full width buttons on mobile */
+.btn-mobile-full {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .btn-mobile-full {
+    width: auto;
+  }
+}
+
+/* ============================================================================
+   MODAL RESPONSIVENESS
+   ============================================================================ */
+
+@media (max-width: 639px) {
+  /* Make modals full screen on mobile */
+  .modal-responsive {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* ============================================================================
+   FORM RESPONSIVENESS
+   ============================================================================ */
+
+.form-responsive input,
+.form-responsive textarea,
+.form-responsive select {
+  width: 100%;
+  font-size: 1rem;
+}
+
+@media (max-width: 639px) {
+  .form-responsive input,
+  .form-responsive textarea,
+  .form-responsive select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* ============================================================================
+   TABLE RESPONSIVENESS
+   ============================================================================ */
+
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 639px) {
+  .table-responsive table {
+    font-size: 0.875rem;
+  }
+}
+
+/* ============================================================================
+   HIDE/SHOW UTILITIES
+   ============================================================================ */
+
+.mobile-only {
+  display: block;
+}
+
+@media (min-width: 640px) {
+  .mobile-only {
+    display: none;
+  }
+}
+
+.desktop-only {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .desktop-only {
+    display: block;
+  }
+}
+
+.tablet-up {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tablet-up {
+    display: block;
+  }
+}
+
+/* ============================================================================
+   TOUCH TARGET SIZES (Mobile Accessibility)
+   ============================================================================ */
+
+@media (max-width: 639px) {
+  button,
+  a,
+  input[type="button"],
+  input[type="submit"] {
+    min-height: 44px; /* iOS recommended touch target */
+    min-width: 44px;
+  }
+}
+
+/* ============================================================================
+   SCROLLBAR STYLING
+   ============================================================================ */
+
+/* Webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+@media (max-width: 639px) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+}
+
+/* ============================================================================
+   SAFE AREA (iOS Notch Support)
+   ============================================================================ */
+
+@supports (padding: max(0px)) {
+  .safe-area-padding {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .safe-area-bottom {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ============================================================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================================================ */
+
+.will-change-transform {
+  will-change: transform;
+}
+
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}

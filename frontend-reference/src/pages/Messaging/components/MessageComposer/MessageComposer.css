@@ -1,0 +1,71 @@
+.message-composer {
+  border-top: 1px solid #e0e0e0;
+  background: white;
+  padding: 16px;
+}
+
+.composer-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.composer-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #d0d0d0;
+  border-radius: 20px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: none;
+  overflow-y: auto;
+  max-height: 120px;
+  transition: border-color 0.2s;
+}
+
+.composer-input:focus {
+  outline: none;
+  border-color: #0a66c2;
+}
+
+.composer-input:disabled {
+  background: #f3f2ef;
+  cursor: not-allowed;
+}
+
+.composer-send-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.composer-send-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.composer-send-button.active {
+  background: #0a66c2;
+  color: white;
+}
+
+.composer-send-button.active:hover {
+  background: #004182;
+}
+
+.character-count {
+  margin-top: 8px;
+  text-align: right;
+  font-size: 12px;
+  color: #666;
+}

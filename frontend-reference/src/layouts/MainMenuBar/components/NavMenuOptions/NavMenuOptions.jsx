@@ -1,0 +1,85 @@
+// eslint-disable-next-line no-unused-vars
+import { User } from "../../../../models/User";
+import { ButtonImageText } from "../../../../components/form-controls";
+import { useLocation, useNavigate } from "react-router-dom";
+import { NavigationPaths, showNotAvailableToast } from "../../../../utilities";
+import { MessagingIcon } from "../../../../components/MessagingIcon";
+
+/**
+ *
+ * @param {Object} props
+ * @param {User} props.objLoggedUser
+ * @param {boolean} [props.booMessaging=true]
+ * @returns {JSX.Element}
+ */
+// eslint-disable-next-line no-unused-vars
+export function NavMenuOptions({ objLoggedUser, booMessaging = true }) {
+  const objLocation = useLocation();
+  const navigate = useNavigate();
+  
+  const handleHomeClick = () => {
+    navigate("/" + NavigationPaths.FEED);
+  };
+
+  const handleNotAvailableClick = () => {
+    showNotAvailableToast();
+  };
+  return (
+    <div className="flex sm:gap-[2px] items-end">
+      <ButtonImageText
+        strTitle="Home"
+        handleClick={handleHomeClick}
+        booSelected={
+          objLocation.pathname ===
+          NavigationPaths.BASE + "/" + NavigationPaths.FEED
+        }
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          data-supported-dps="24x24"
+          fill="currentColor"
+          width="24"
+          height="24"
+          focusable="false"
+        >
+          <path d="M23 9v2h-2v7a3 3 0 01-3 3h-4v-6h-4v6H6a3 3 0 01-3-3v-7H1V9l11-7 5 3.18V2h3v5.09z"></path>
+        </svg>
+      </ButtonImageText>
+
+      <ButtonImageText
+        strTitle="My Network"
+        handleClick={handleNotAvailableClick}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          data-supported-dps="24x24"
+          fill="currentColor"
+          width="24"
+          height="24"
+          focusable="false"
+        >
+          <path d="M12 16v6H3v-6a3 3 0 013-3h3a3 3 0 013 3zm5.5-3A3.5 3.5 0 1014 9.5a3.5 3.5 0 003.5 3.5zm1 2h-2a2.5 2.5 0 00-2.5 2.5V22h7v-4.5a2.5 2.5 0 00-2.5-2.5zM7.5 2A4.5 4.5 0 1012 6.5 4.49 4.49 0 007.5 2z"></path>
+        </svg>
+      </ButtonImageText>
+
+      <ButtonImageText strTitle="Jobs" handleClick={handleNotAvailableClick}>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          data-supported-dps="24x24"
+          fill="currentColor"
+          width="24"
+          height="24"
+          focusable="false"
+        >
+          <path d="M17 6V5a3 3 0 00-3-3h-4a3 3 0 00-3 3v1H2v4a3 3 0 003 3h14a3 3 0 003-3V6zM9 5a1 1 0 011-1h4a1 1 0 011 1v1H9zm10 9a4 4 0 003-1.38V17a3 3 0 01-3 3H5a3 3 0 01-3-3v-4.38A4 4 0 005 14z"></path>
+        </svg>
+      </ButtonImageText>
+      {booMessaging ? (
+        <MessagingIcon />
+      ) : null}
+    </div>
+  );
+}
