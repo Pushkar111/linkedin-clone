@@ -1,13 +1,77 @@
 /**
  * Post Controller
- * Handle post CRUD operations, likes, and comments
+ * Handle post CRUD operations, likes, comments, and reactions
  */
 
 import asyncHandler from 'express-async-handler';
+import mongoose from 'mongoose';
 import Post from '../models/Post.js';
 import User from '../models/User.js';
+import Reaction from '../models/Reaction.js';
+import Notification from '../models/Notification.js';
 import { uploadPostImage, uploadBase64ToCloudinary, deleteFromCloudinary, getPublicIdFromUrl } from '../utils/cloudinaryUpload.js';
 import { extractHashtags } from '../utils/hashtags.js';
+
+/**
+ * Helper function to enrich comments with reaction data
+ * @param {Array} comments - Array of comment objects
+ * @param {ObjectId} userId - Optional current user ID to check if they reacted
+ * @returns {Promise<Array>} - Comments enriched with reaction data
+ */
+async function enrichCommentsWithReactions(comments, userId = null) {
+  if (!comments || comments.length === 0) {
+    return comments;
+  }
+
+  // Get all comment IDs
+  const commentIds = comments.map(c => c._id);
+
+  // Get all reactions for these comments
+  const reactions = await Reaction.find({
+    parentId: { $in: commentIds },
+    parentType: 'post-comment',
+  });
+
+  // Group reactions by comment ID
+  const reactionsByComment = {};
+  reactions.forEach(reaction => {
+    const commentId = reaction.parentId.toString();
+    if (!reactionsByComment[commentId]) {
+      reactionsByComment[commentId] = [];
+    }
+    reactionsByComment[commentId].push(reaction);
+  });
+
+  // Enrich each comment
+  return comments.map(comment => {
+    const commentId = comment._id.toString();
+    const commentReactions = reactionsByComment[commentId] || [];
+    
+    // Calculate reaction counts
+    const reactionCounts = {};
+    commentReactions.forEach(reaction => {
+      reactionCounts[reaction.reactionType] = (reactionCounts[reaction.reactionType] || 0) + 1;
+    });
+
+    // Check if current user reacted
+    let userReaction = null;
+    if (userId) {
+      const userReactionObj = commentReactions.find(
+        r => r.user.toString() === userId.toString()
+      );
+      if (userReactionObj) {
+        userReaction = userReactionObj.reactionType;
+      }
+    }
+
+    return {
+      ...comment,
+      reactionCount: commentReactions.length,
+      reactionCounts,
+      userReaction,
+    };
+  });
+}
 
 /**
  * @route   GET /api/posts
@@ -18,6 +82,7 @@ export const getAllPosts = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
+  const userId = req.user?._id; // Optional user for personalization
 
   // Query only active posts
   const query = { active: true };
@@ -26,13 +91,20 @@ export const getAllPosts = asyncHandler(async (req, res) => {
   const total = await Post.countDocuments(query);
 
   // Get posts with populated user data
-  const posts = await Post.find(query)
+  let posts = await Post.find(query)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
     .populate('user', 'fullName profilePicURL email profile.headline')
     .populate('comments.user', 'fullName profilePicURL')
     .lean();
+
+  // Enrich comments with reaction data
+  for (let i = 0; i < posts.length; i++) {
+    if (posts[i].comments && posts[i].comments.length > 0) {
+      posts[i].comments = await enrichCommentsWithReactions(posts[i].comments, userId);
+    }
+  }
 
   res.status(200).json({
     success: true,
@@ -50,9 +122,12 @@ export const getAllPosts = asyncHandler(async (req, res) => {
  * @access  Public
  */
 export const getPostById = asyncHandler(async (req, res) => {
-  const post = await Post.findById(req.params.id)
+  const userId = req.user?._id; // Optional user for personalization
+  
+  let post = await Post.findById(req.params.id)
     .populate('user', 'fullName profilePicURL email profile.headline')
-    .populate('comments.user', 'fullName profilePicURL');
+    .populate('comments.user', 'fullName profilePicURL')
+    .lean();
 
   if (!post) {
     res.status(404);
@@ -64,8 +139,15 @@ export const getPostById = asyncHandler(async (req, res) => {
     throw new Error('Post not found');
   }
 
-  // Increment view count (async, don't await)
-  post.incrementView().catch(err => console.error('Failed to increment view:', err));
+  // Enrich comments with reaction data
+  if (post.comments && post.comments.length > 0) {
+    post.comments = await enrichCommentsWithReactions(post.comments, userId);
+  }
+
+  // Increment view count (async, don't await) - need to get non-lean post
+  Post.findById(req.params.id).then(p => {
+    if (p) p.incrementView().catch(err => console.error('Failed to increment view:', err));
+  });
 
   res.status(200).json({
     success: true,
@@ -340,6 +422,18 @@ export const toggleReaction = asyncHandler(async (req, res) => {
     reactionCounts: result.reactionCounts,
   });
 
+  // Create notification if user reacted (not if they unreacted) and it's not their own post
+  if (result.reacted && post.user.toString() !== userId.toString()) {
+    await Notification.createNotification({
+      recipient: post.user,
+      sender: userId,
+      type: 'POST_LIKE',
+      entityId: postId,
+      entityType: 'Post',
+      metadata: { reactionType }
+    });
+  }
+
   // Populate user data
   await post.populate('user', 'fullName profilePicURL email profile.headline');
 
@@ -378,15 +472,33 @@ export const addComment = asyncHandler(async (req, res) => {
   // Add comment
   const comment = await post.addComment(req.user._id, text);
 
+  // Create notification for post owner (if not commenting on own post)
+  if (post.user.toString() !== req.user._id.toString()) {
+    await Notification.createNotification({
+      recipient: post.user,
+      sender: req.user._id,
+      type: 'POST_COMMENT',
+      entityId: req.params.id,
+      entityType: 'Post',
+      metadata: { commentText: text.substring(0, 100) }
+    });
+  }
+
   // Populate user data
   await post.populate('user', 'fullName profilePicURL email profile.headline');
   await post.populate('comments.user', 'fullName profilePicURL');
 
+  // Convert to plain object and enrich comments with reactions
+  const postObj = post.toObject();
+  if (postObj.comments && postObj.comments.length > 0) {
+    postObj.comments = await enrichCommentsWithReactions(postObj.comments, req.user._id);
+  }
+
   res.status(201).json({
     success: true,
-    comment,
+    comment: postObj.comments.find(c => c._id.toString() === comment._id.toString()),
     commentCount: post.commentCount,
-    post,
+    post: postObj,
   });
 });
 
@@ -434,11 +546,81 @@ export const deleteComment = asyncHandler(async (req, res) => {
   await post.populate('user', 'fullName profilePicURL email profile.headline');
   await post.populate('comments.user', 'fullName profilePicURL');
 
+  // Convert to plain object and enrich comments with reactions
+  const postObj = post.toObject();
+  if (postObj.comments && postObj.comments.length > 0) {
+    postObj.comments = await enrichCommentsWithReactions(postObj.comments, req.user._id);
+  }
+
   res.status(200).json({
     success: true,
     message: 'Comment deleted successfully',
     commentCount: post.commentCount,
-    post,
+    post: postObj,
+  });
+});
+
+/**
+ * @route   PUT /api/posts/:id/comments/:commentId
+ * @desc    Update a comment
+ * @access  Private (comment owner only)
+ */
+export const updateComment = asyncHandler(async (req, res) => {
+  const { id: postId, commentId } = req.params;
+  const { text } = req.body;
+
+  if (!text || !text.trim()) {
+    res.status(400);
+    throw new Error('Comment text is required');
+  }
+
+  const post = await Post.findById(postId);
+
+  if (!post) {
+    res.status(404);
+    throw new Error('Post not found');
+  }
+
+  // Find the comment
+  const comment = post.comments.id(commentId);
+
+  if (!comment) {
+    res.status(404);
+    throw new Error('Comment not found');
+  }
+
+  // Check if user is comment owner
+  const isCommentOwner = comment.user.toString() === req.user._id.toString();
+
+  if (!isCommentOwner) {
+    res.status(403);
+    throw new Error('Not authorized to edit this comment');
+  }
+
+  // Update comment text
+  comment.text = text.trim();
+  comment.updatedAt = new Date();
+
+  await post.save();
+
+  // Populate user data
+  await post.populate('user', 'fullName profilePicURL email profile.headline');
+  await post.populate('comments.user', 'fullName profilePicURL');
+
+  // Convert to plain object and enrich comments with reactions
+  const postObj = post.toObject();
+  if (postObj.comments && postObj.comments.length > 0) {
+    postObj.comments = await enrichCommentsWithReactions(postObj.comments, req.user._id);
+  }
+
+  // Find the updated comment with reactions
+  const updatedComment = postObj.comments.find(c => c._id.toString() === commentId.toString());
+
+  res.status(200).json({
+    success: true,
+    message: 'Comment updated successfully',
+    comment: updatedComment,
+    post: postObj,
   });
 });
 
@@ -452,6 +634,7 @@ export const getUserPosts = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
+  const currentUserId = req.user?._id; // Optional for personalization
 
   // Check if user exists
   const user = await User.findById(userId);
@@ -464,13 +647,20 @@ export const getUserPosts = asyncHandler(async (req, res) => {
 
   const total = await Post.countDocuments(query);
 
-  const posts = await Post.find(query)
+  let posts = await Post.find(query)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
     .populate('user', 'fullName profilePicURL email profile.headline')
     .populate('comments.user', 'fullName profilePicURL')
     .lean();
+
+  // Enrich comments with reaction data
+  for (let i = 0; i < posts.length; i++) {
+    if (posts[i].comments && posts[i].comments.length > 0) {
+      posts[i].comments = await enrichCommentsWithReactions(posts[i].comments, currentUserId);
+    }
+  }
 
   res.status(200).json({
     success: true,
@@ -492,6 +682,7 @@ export const getPostsByHashtag = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
+  const userId = req.user?._id; // Optional for personalization
 
   // Normalize hashtag (lowercase, remove # if present)
   const normalizedTag = tag.toLowerCase().replace(/^#/, '');
@@ -503,13 +694,20 @@ export const getPostsByHashtag = asyncHandler(async (req, res) => {
 
   const total = await Post.countDocuments(query);
 
-  const posts = await Post.find(query)
+  let posts = await Post.find(query)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
     .populate('user', 'fullName profilePicURL email profile.headline')
     .populate('comments.user', 'fullName profilePicURL')
     .lean();
+
+  // Enrich comments with reaction data
+  for (let i = 0; i < posts.length; i++) {
+    if (posts[i].comments && posts[i].comments.length > 0) {
+      posts[i].comments = await enrichCommentsWithReactions(posts[i].comments, userId);
+    }
+  }
 
   res.status(200).json({
     success: true,
@@ -564,5 +762,242 @@ export const getTrendingHashtags = asyncHandler(async (req, res) => {
     success: true,
     count: trending.length,
     trending,
+  });
+});
+
+/**
+ * @route   POST /api/posts/:id/comments/:commentId/reactions
+ * @desc    Toggle reaction on a comment
+ * @access  Private
+ */
+export const toggleCommentReaction = asyncHandler(async (req, res) => {
+  const { id: postId, commentId } = req.params;
+  const { reactionType = 'like' } = req.body;
+
+  // Validate reaction type
+  const validReactions = ['like', 'celebrate', 'support', 'funny', 'love', 'insightful', 'curious'];
+  if (!validReactions.includes(reactionType)) {
+    res.status(400);
+    throw new Error('Invalid reaction type');
+  }
+
+  // Find the post and verify it exists
+  const post = await Post.findById(postId);
+  if (!post) {
+    res.status(404);
+    throw new Error('Post not found');
+  }
+
+  // Find the comment
+  const comment = post.comments.id(commentId);
+  if (!comment) {
+    res.status(404);
+    throw new Error('Comment not found');
+  }
+
+  try {
+    // Check if user already reacted to this comment
+    const existingReaction = await Reaction.findOne({
+      user: req.user._id,
+      parentId: commentId,
+      parentType: 'post-comment',
+    });
+
+    let userReaction = null;
+    let message = '';
+
+    if (existingReaction) {
+      if (existingReaction.reactionType === reactionType) {
+        // Same reaction - remove it (unlike)
+        await Reaction.deleteOne({ _id: existingReaction._id });
+        message = 'Reaction removed';
+      } else {
+        // Different reaction - update it
+        existingReaction.reactionType = reactionType;
+        await existingReaction.save();
+        userReaction = reactionType;
+        message = 'Reaction updated';
+      }
+    } else {
+      // No existing reaction - create new one
+      await Reaction.create({
+        user: req.user._id,
+        parentId: commentId,
+        parentType: 'post-comment',
+        reactionType,
+      });
+      userReaction = reactionType;
+      message = 'Reaction added';
+    }
+
+    // Get updated reaction counts for this comment
+    const reactionCounts = await Reaction.aggregate([
+      {
+        $match: {
+          parentId: new mongoose.Types.ObjectId(commentId),
+          parentType: 'post-comment',
+        },
+      },
+      {
+        $group: {
+          _id: '$reactionType',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Format reaction counts
+    const formattedCounts = {};
+    reactionCounts.forEach((rc) => {
+      formattedCounts[rc._id] = rc.count;
+    });
+
+    // Get total reaction count
+    const totalReactions = reactionCounts.reduce((sum, rc) => sum + rc.count, 0);
+
+    res.status(200).json({
+      success: true,
+      message,
+      data: {
+        commentId,
+        userReaction,
+        reactionCounts: formattedCounts,
+        totalReactions,
+      },
+    });
+  } catch (error) {
+    // Handle unique constraint errors
+    if (error.code === 11000) {
+      res.status(400);
+      throw new Error('Reaction already exists');
+    }
+    throw error;
+  }
+});
+
+/**
+ * @route   GET /api/posts/:id/comments/:commentId/reactions
+ * @desc    Get all reactions for a comment
+ * @access  Public
+ */
+export const getCommentReactions = asyncHandler(async (req, res) => {
+  const { id: postId, commentId } = req.params;
+  const userId = req.user?._id;
+
+  // Find the post and verify it exists
+  const post = await Post.findById(postId);
+  if (!post) {
+    res.status(404);
+    throw new Error('Post not found');
+  }
+
+  // Find the comment
+  const comment = post.comments.id(commentId);
+  if (!comment) {
+    res.status(404);
+    throw new Error('Comment not found');
+  }
+
+  // Get reaction counts grouped by type
+  const reactionCounts = await Reaction.aggregate([
+    {
+      $match: {
+        parentId: new mongoose.Types.ObjectId(commentId),
+        parentType: 'post-comment',
+      },
+    },
+    {
+      $group: {
+        _id: '$reactionType',
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  // Format reaction counts
+  const formattedCounts = {};
+  reactionCounts.forEach((rc) => {
+    formattedCounts[rc._id] = rc.count;
+  });
+
+  // Get total reaction count
+  const totalReactions = reactionCounts.reduce((sum, rc) => sum + rc.count, 0);
+
+  // Get user's reaction if authenticated
+  let userReaction = null;
+  if (userId) {
+    const reaction = await Reaction.findOne({
+      user: userId,
+      parentId: commentId,
+      parentType: 'post-comment',
+    });
+    userReaction = reaction ? reaction.reactionType : null;
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      commentId,
+      userReaction,
+      reactionCounts: formattedCounts,
+      totalReactions,
+    },
+  });
+});
+
+/**
+ * @route   GET /api/posts/:id/comments/:commentId/reactions/users
+ * @desc    Get users who reacted to a comment (with pagination)
+ * @access  Public
+ */
+export const getCommentReactionUsers = asyncHandler(async (req, res) => {
+  const { id: postId, commentId } = req.params;
+  const { reactionType, page = 1, limit = 20 } = req.query;
+
+  // Find the post and verify it exists
+  const post = await Post.findById(postId);
+  if (!post) {
+    res.status(404);
+    throw new Error('Post not found');
+  }
+
+  // Find the comment
+  const comment = post.comments.id(commentId);
+  if (!comment) {
+    res.status(404);
+    throw new Error('Comment not found');
+  }
+
+  // Build query
+  const query = {
+    parentId: commentId,
+    parentType: 'post-comment',
+  };
+
+  if (reactionType) {
+    query.reactionType = reactionType;
+  }
+
+  // Get reactions with user details
+  const reactions = await Reaction.find(query)
+    .populate('user', 'fullName profilePicURL email profile.headline')
+    .sort({ createdAt: -1 })
+    .limit(parseInt(limit))
+    .skip((parseInt(page) - 1) * parseInt(limit));
+
+  const total = await Reaction.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      commentId,
+      reactions,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    },
   });
 });

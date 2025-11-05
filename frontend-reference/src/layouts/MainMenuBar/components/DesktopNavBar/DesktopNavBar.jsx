@@ -6,6 +6,7 @@ import { NavigationPaths, showNotAvailableToast } from "../../../../utilities";
 import { SearchBox } from "../SearchBox/";
 import { NavMenuOptions } from "../NavMenuOptions/NavMenuOptions";
 import { FadeInAnimationDiv } from "../../../../components/FadeInAnimationDiv/FadeInAnimationDiv";
+import NotificationBell from "../../../../components/NotificationBell";
 const UserDisplay = lazy(() => import("./components/UserDisplay/UserDisplay"));
 
 /**
@@ -40,6 +41,8 @@ export function DesktopNavBar({ objLoggedUser }) {
         <SearchBox objLoggedUser={objLoggedUser} />
 
         <NavMenuOptions objLoggedUser={objLoggedUser} />
+
+        <NotificationBell />
 
         <Suspense>
           <UserDisplay objLoggedUser={objLoggedUser} />

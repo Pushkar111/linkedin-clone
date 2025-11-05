@@ -1,5 +1,6 @@
 import ReactDOM from "react-dom/client";
 import { Provider } from "react-redux";
+import { HelmetProvider } from "react-helmet-async";
 import store from "./redux/store";
 import "./index.css";
 import App from "./App";
@@ -10,8 +11,10 @@ if (divRoot) {
   root.render(
     // <React.StrictMode>
     <Provider store={store}>
-      <App />
-    </Provider>
+      <HelmetProvider>
+        <App />
+      </HelmetProvider>
+    </Provider> 
 
     // </React.StrictMode>
   );

@@ -210,3 +210,103 @@ export const getLikeCount = (post) => {
   
   return post.intReactionCount || 0;
 };
+
+/**
+ * Comment Reaction API
+ * Handles comment reaction operations
+ */
+export const commentReactionAPI = {
+  /**
+   * Toggle reaction on a comment
+   * @param {string} postId - Post ID
+   * @param {string} commentId - Comment ID
+   * @param {string} reactionType - Reaction type (like, love, celebrate, etc.)
+   * @returns {Promise<Object>} API response
+   */
+  async toggleReaction(postId, commentId, reactionType = "like") {
+    const token = localStorage.getItem("token");
+    const response = await fetch(
+      `http://localhost:5000/api/posts/${postId}/comments/${commentId}/reactions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reactionType }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to toggle comment reaction");
+    }
+
+    return await response.json();
+  },
+
+  /**
+   * Get reactions for a comment
+   * @param {string} postId - Post ID
+   * @param {string} commentId - Comment ID
+   * @returns {Promise<Object>} API response
+   */
+  async getReactions(postId, commentId) {
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(
+      `http://localhost:5000/api/posts/${postId}/comments/${commentId}/reactions`,
+      {
+        method: "GET",
+        headers,
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to get comment reactions");
+    }
+
+    return await response.json();
+  },
+
+  /**
+   * Get users who reacted to a comment
+   * @param {string} postId - Post ID
+   * @param {string} commentId - Comment ID
+   * @param {string} reactionType - Optional: filter by reaction type
+   * @param {number} page - Page number
+   * @param {number} limit - Results per page
+   * @returns {Promise<Object>} API response
+   */
+  async getReactionUsers(postId, commentId, reactionType = null, page = 1, limit = 20) {
+    const queryParams = new URLSearchParams({ page, limit });
+    if (reactionType) {
+      queryParams.append("reactionType", reactionType);
+    }
+
+    const response = await fetch(
+      `http://localhost:5000/api/posts/${postId}/comments/${commentId}/reactions/users?${queryParams}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to get comment reaction users");
+    }
+
+    return await response.json();
+  },
+};

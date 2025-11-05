@@ -11,6 +11,10 @@ import {
   searchUsers,
   getAllUsers,
   deactivateUser,
+  followUser,
+  unfollowUser,
+  getUserConnections,
+  getSuggestedConnections,
 } from '../controllers/userController.js';
 import { protect, optionalAuth } from '../middleware/auth.js';
 import {
@@ -30,6 +34,13 @@ const router = express.Router();
 router.get('/search', searchUsers);
 
 /**
+ * @route   GET /api/users/suggestions
+ * @desc    Get suggested connections for current user
+ * @access  Private
+ */
+router.get('/suggestions', protect, getSuggestedConnections);
+
+/**
  * @route   GET /api/users
  * @desc    Get all users (for suggestions)
  * @access  Public (with optional auth)
@@ -39,9 +50,9 @@ router.get('/', optionalAuth, getAllUsers);
 /**
  * @route   GET /api/users/:id
  * @desc    Get user profile by ID
- * @access  Public
+ * @access  Public (with optional auth to check if following)
  */
-router.get('/:id', objectIdValidation('id'), validate, getUserProfile);
+router.get('/:id', optionalAuth, objectIdValidation('id'), validate, getUserProfile);
 
 /**
  * @route   PUT /api/users/:id
@@ -81,6 +92,44 @@ router.get(
   objectIdValidation('id'),
   validate,
   getUserPosts
+);
+
+/**
+ * @route   POST /api/users/:id/follow
+ * @desc    Follow a user
+ * @access  Private
+ */
+router.post(
+  '/:id/follow',
+  protect,
+  objectIdValidation('id'),
+  validate,
+  followUser
+);
+
+/**
+ * @route   DELETE /api/users/:id/follow
+ * @desc    Unfollow a user
+ * @access  Private
+ */
+router.delete(
+  '/:id/follow',
+  protect,
+  objectIdValidation('id'),
+  validate,
+  unfollowUser
+);
+
+/**
+ * @route   GET /api/users/:id/connections
+ * @desc    Get user's connections
+ * @access  Public
+ */
+router.get(
+  '/:id/connections',
+  objectIdValidation('id'),
+  validate,
+  getUserConnections
 );
 
 export default router;

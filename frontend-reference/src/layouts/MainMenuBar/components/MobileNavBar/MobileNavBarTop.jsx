@@ -2,6 +2,7 @@
 import { User } from "../../../../models";
 import { showNotAvailableToast } from "../../../../utilities";
 import { SearchBox } from "../SearchBox";
+import NotificationBell from "../../../../components/NotificationBell";
 
 /**
  *
@@ -28,6 +29,8 @@ export default function MobileNavBarTop({ objLoggedUser }) {
       <div className=" min-w-[245px] m-[2px] mr-2 flex items-center">
         <SearchBox objLoggedUser={objLoggedUser} />
       </div>
+
+      <NotificationBell className="mr-1" />
 
       <button
         type="button"

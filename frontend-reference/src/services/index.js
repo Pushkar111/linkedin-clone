@@ -9,5 +9,6 @@ export const googleSignOutUser = () => {
 export * as authAPI from "./authService";
 export * as postAPI from "./postService";
 export * as userAPI from "./userService";
+export * as connectionAPI from "./connectionAPI";
 export { default as apiClient } from "./apiClient";
 export * from "./apiAdapters";

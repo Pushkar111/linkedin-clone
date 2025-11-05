@@ -16,6 +16,8 @@ import authRoutes from './routes/authRoutes.js';
 import postRoutes from './routes/postRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import connectionRoutes from './routes/connectionRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 
 // Import error handlers
 import { notFound, errorHandler } from './middleware/error.js';
@@ -114,6 +116,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/uploads', uploadRoutes);
+app.use('/api/connections', connectionRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 /**
  * Root Route
@@ -122,12 +126,14 @@ app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'LinkedIn Clone API',
-    version: '1.0.0',
+    version: '3.0.0',
     endpoints: {
       auth: '/api/auth',
       posts: '/api/posts',
       users: '/api/users',
       uploads: '/api/uploads',
+      connections: '/api/connections',
+      notifications: '/api/notifications',
       health: '/health',
     },
   });

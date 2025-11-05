@@ -28,12 +28,37 @@ export const getUserProfile = asyncHandler(async (req, res) => {
 
   // Get user's post count
   const postCount = await Post.countDocuments({ user: user._id, active: true });
+  
+  // Calculate total reactions received
+  const posts = await Post.find({ user: user._id, active: true }).select('reactions');
+  const reactionsReceived = posts.reduce((total, post) => {
+    return total + (post.reactions ? post.reactions.length : 0);
+  }, 0);
+  
+  // Check if current user is following this profile
+  let isFollowedByCurrentUser = false;
+  let isOwner = false;
+  
+  if (req.user) {
+    isOwner = req.user._id.toString() === user._id.toString();
+    if (!isOwner) {
+      isFollowedByCurrentUser = req.user.isFollowing(user._id);
+    }
+    
+    // Increment profile view (but not for own profile)
+    if (!isOwner) {
+      await user.incrementProfileView();
+    }
+  }
 
   res.status(200).json({
     success: true,
     user: {
       ...user.getPublicProfile(),
       postCount,
+      reactionsReceived,
+      isFollowedByCurrentUser,
+      isOwner,
     },
   });
 });
@@ -272,5 +297,155 @@ export const deactivateUser = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Account deactivated successfully',
+  });
+});
+
+/**
+ * @route   POST /api/users/:id/follow
+ * @desc    Follow a user
+ * @access  Private
+ */
+export const followUser = asyncHandler(async (req, res) => {
+  const targetUser = await User.findById(req.params.id);
+
+  if (!targetUser || !targetUser.active) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  // Can't follow yourself
+  if (targetUser._id.toString() === req.user._id.toString()) {
+    res.status(400);
+    throw new Error('Cannot follow yourself');
+  }
+
+  // Follow the user
+  const currentUser = await User.findById(req.user._id);
+  const followed = await currentUser.followUser(targetUser._id);
+
+  if (!followed) {
+    res.status(400);
+    throw new Error('Already following this user');
+  }
+
+  // Get updated follower count
+  const updatedTargetUser = await User.findById(targetUser._id);
+
+  res.status(200).json({
+    success: true,
+    message: 'User followed successfully',
+    followersCount: updatedTargetUser.followers.length,
+  });
+});
+
+/**
+ * @route   DELETE /api/users/:id/follow
+ * @desc    Unfollow a user
+ * @access  Private
+ */
+export const unfollowUser = asyncHandler(async (req, res) => {
+  const targetUser = await User.findById(req.params.id);
+
+  if (!targetUser || !targetUser.active) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  // Unfollow the user
+  const currentUser = await User.findById(req.user._id);
+  const unfollowed = await currentUser.unfollowUser(targetUser._id);
+
+  if (!unfollowed) {
+    res.status(400);
+    throw new Error('Not following this user');
+  }
+
+  // Get updated follower count
+  const updatedTargetUser = await User.findById(targetUser._id);
+
+  res.status(200).json({
+    success: true,
+    message: 'User unfollowed successfully',
+    followersCount: updatedTargetUser.followers.length,
+  });
+});
+
+/**
+ * @route   GET /api/users/:id/connections
+ * @desc    Get user's connections
+ * @access  Public
+ */
+export const getUserConnections = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+
+  if (!user || !user.active) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  const limit = parseInt(req.query.limit) || 20;
+
+  // Get connections (followers who also follow back)
+  const connections = await User.find({
+    _id: { $in: user.following || [] },
+    followers: user._id,
+    active: true,
+  })
+    .select('fullName profilePicURL profile.headline')
+    .limit(limit)
+    .lean();
+
+  // Calculate mutual connections for each connection
+  const connectionsWithMutual = connections.map(connection => ({
+    _id: connection._id,
+    name: connection.fullName,
+    fullName: connection.fullName,
+    headline: connection.profile?.headline || '',
+    avatarUrl: connection.profilePicURL,
+    profilePicURL: connection.profilePicURL,
+    mutualConnections: 0, // Would need complex query to calculate
+  }));
+
+  res.status(200).json({
+    success: true,
+    count: connectionsWithMutual.length,
+    connections: connectionsWithMutual,
+  });
+});
+
+/**
+ * @route   GET /api/users/suggestions
+ * @desc    Get suggested connections for current user
+ * @access  Private
+ */
+export const getSuggestedConnections = asyncHandler(async (req, res) => {
+  const limit = parseInt(req.query.limit) || 5;
+
+  // Get users the current user is NOT following and not themselves
+  const suggestions = await User.find({
+    _id: {
+      $ne: req.user._id,
+      $nin: req.user.following || [],
+    },
+    active: true,
+  })
+    .select('fullName profilePicURL profile.headline')
+    .limit(limit)
+    .lean();
+
+  const suggestionsFormatted = suggestions.map(user => ({
+    _id: user._id,
+    name: user.fullName,
+    fullName: user.fullName,
+    headline: user.profile?.headline || '',
+    avatarUrl: user.profilePicURL,
+    profilePicURL: user.profilePicURL,
+    mutualConnections: 0,
+  }));
+
+  res.status(200).json({
+    success: true,
+    count: suggestionsFormatted.length,
+    suggestions: suggestionsFormatted,
   });
 });

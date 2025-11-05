@@ -13,10 +13,14 @@ import {
   toggleLike,
   toggleReaction,
   addComment,
+  updateComment,
   deleteComment,
   getUserPosts,
   getPostsByHashtag,
   getTrendingHashtags,
+  toggleCommentReaction,
+  getCommentReactions,
+  getCommentReactionUsers,
 } from '../controllers/postController.js';
 import { protect, optionalAuth } from '../middleware/auth.js';
 import {
@@ -165,6 +169,20 @@ router.post(
 );
 
 /**
+ * @route   PUT /api/posts/:id/comments/:commentId
+ * @desc    Update a comment
+ * @access  Private (comment owner only)
+ */
+router.put(
+  '/:id/comments/:commentId',
+  protect,
+  objectIdValidation('id'),
+  createCommentValidation,
+  validate,
+  updateComment
+);
+
+/**
  * @route   DELETE /api/posts/:id/comments/:commentId
  * @desc    Delete a comment from a post
  * @access  Private (comment owner or post owner)
@@ -175,6 +193,44 @@ router.delete(
   objectIdValidation('id'),
   validate,
   deleteComment
+);
+
+/**
+ * @route   POST /api/posts/:id/comments/:commentId/reactions
+ * @desc    Toggle reaction on a comment
+ * @access  Private
+ */
+router.post(
+  '/:id/comments/:commentId/reactions',
+  protect,
+  objectIdValidation('id'),
+  validate,
+  toggleCommentReaction
+);
+
+/**
+ * @route   GET /api/posts/:id/comments/:commentId/reactions
+ * @desc    Get all reactions for a comment
+ * @access  Public (with optional auth)
+ */
+router.get(
+  '/:id/comments/:commentId/reactions',
+  optionalAuth,
+  objectIdValidation('id'),
+  validate,
+  getCommentReactions
+);
+
+/**
+ * @route   GET /api/posts/:id/comments/:commentId/reactions/users
+ * @desc    Get users who reacted to a comment
+ * @access  Public
+ */
+router.get(
+  '/:id/comments/:commentId/reactions/users',
+  objectIdValidation('id'),
+  validate,
+  getCommentReactionUsers
 );
 
 export default router;

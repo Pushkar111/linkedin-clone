@@ -88,7 +88,7 @@ export default function FormalLinks() {
           </svg>
         </div>
         <div className=" text-[13px] leading-4">
-          {"LinkedIn Corporation © 2022"}
+          {"LinkedIn Corporation © 2025"}
         </div>
       </div>
     </div>

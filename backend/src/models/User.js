@@ -67,11 +67,82 @@ const userSchema = new mongoose.Schema(
       },
       countryLoc: String,
       postalCodeLoc: String,
+      location: String, // City, State, Country format
+      bannerUrl: String, // Profile banner/cover image
       backgroundPicURL: String,
       sections: {
         type: [String], // ['education', 'skill', 'experience']
         default: [],
       },
+      // Experience section
+      experience: [
+        {
+          company: String,
+          companyLogo: String,
+          position: String,
+          startDate: Date,
+          endDate: Date,
+          current: { type: Boolean, default: false },
+          location: String,
+          description: String,
+          skills: [String],
+        },
+      ],
+      // Education section
+      education: [
+        {
+          school: String,
+          schoolLogo: String,
+          degree: String,
+          fieldOfStudy: String,
+          startDate: Date,
+          endDate: Date,
+          grade: String,
+          activities: String,
+          description: String,
+        },
+      ],
+      // Skills section
+      skills: [
+        {
+          name: { type: String, required: true },
+          endorsements: { type: Number, default: 0 },
+          endorsedBy: [
+            {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: 'User',
+            },
+          ],
+        },
+      ],
+    },
+    // Social features
+    followers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    following: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    connections: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    // Analytics
+    profileViews: {
+      type: Number,
+      default: 0,
+    },
+    searchAppearances: {
+      type: Number,
+      default: 0,
     },
   },
   {
@@ -97,6 +168,9 @@ const userSchema = new mongoose.Schema(
 
 // Index for faster queries (email already has unique index from schema definition)
 userSchema.index({ active: 1 });
+userSchema.index({ followers: 1 });
+userSchema.index({ following: 1 });
+userSchema.index({ connections: 1 });
 
 /**
  * Hash password before saving
@@ -135,7 +209,90 @@ userSchema.methods.getPublicProfile = function () {
     profile: this.profile,
     authMethod: this.authMethod,
     createdAt: this.createdAt,
+    followersCount: this.followers ? this.followers.length : 0,
+    followingCount: this.following ? this.following.length : 0,
+    connectionsCount: this.connections ? this.connections.length : 0,
+    profileViews: this.profileViews || 0,
+    searchAppearances: this.searchAppearances || 0,
   };
+};
+
+/**
+ * Follow another user
+ * @param {ObjectId} targetUserId - User to follow
+ * @returns {Promise<boolean>}
+ */
+userSchema.methods.followUser = async function (targetUserId) {
+  const targetUserIdString = targetUserId.toString();
+  const thisIdString = this._id.toString();
+  
+  // Can't follow yourself
+  if (targetUserIdString === thisIdString) {
+    throw new Error('Cannot follow yourself');
+  }
+  
+  // Check if already following
+  if (this.following && this.following.some(id => id.toString() === targetUserIdString)) {
+    return false; // Already following
+  }
+  
+  // Add to following array
+  if (!this.following) this.following = [];
+  this.following.push(targetUserId);
+  await this.save();
+  
+  // Add this user to target's followers
+  await mongoose.model('User').findByIdAndUpdate(
+    targetUserId,
+    { $addToSet: { followers: this._id } }
+  );
+  
+  return true;
+};
+
+/**
+ * Unfollow a user
+ * @param {ObjectId} targetUserId - User to unfollow
+ * @returns {Promise<boolean>}
+ */
+userSchema.methods.unfollowUser = async function (targetUserId) {
+  const targetUserIdString = targetUserId.toString();
+  
+  // Check if actually following
+  if (!this.following || !this.following.some(id => id.toString() === targetUserIdString)) {
+    return false; // Not following
+  }
+  
+  // Remove from following array
+  this.following = this.following.filter(id => id.toString() !== targetUserIdString);
+  await this.save();
+  
+  // Remove this user from target's followers
+  await mongoose.model('User').findByIdAndUpdate(
+    targetUserId,
+    { $pull: { followers: this._id } }
+  );
+  
+  return true;
+};
+
+/**
+ * Check if following a user
+ * @param {ObjectId} targetUserId - User to check
+ * @returns {boolean}
+ */
+userSchema.methods.isFollowing = function (targetUserId) {
+  if (!this.following) return false;
+  return this.following.some(id => id.toString() === targetUserId.toString());
+};
+
+/**
+ * Increment profile view count
+ * @returns {Promise<void>}
+ */
+userSchema.methods.incrementProfileView = async function () {
+  this.profileViews = (this.profileViews || 0) + 1;
+  await this.save();
 };
 
 /**
