@@ -44,6 +44,7 @@ export default function PostEntry({
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(objPost.strText);
+  const [currentPostText, setCurrentPostText] = useState(objPost.strText); // Track updated text
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -121,9 +122,9 @@ export default function PostEntry({
 
   // Handler for editing post
   const handleEditPost = async () => {
-    if (!editText.trim() || editText.trim() === objPost.strText) {
+    if (!editText.trim() || editText.trim() === currentPostText) {
       setIsEditing(false);
-      setEditText(objPost.strText);
+      setEditText(currentPostText);
       return;
     }
 
@@ -149,15 +150,15 @@ export default function PostEntry({
 
       const data = await response.json();
       
-      // Update the post text in the UI
-      objPost.strText = data.post.text;
+      // Update the local state with new text (instead of mutating props)
+      setCurrentPostText(data.post.text);
       setIsEditing(false);
       setShowOptionsMenu(false);
       console.log("✅ Post updated:", data.post);
     } catch (error) {
       console.error("❌ Failed to update post:", error);
       alert("Failed to update post. Please try again.");
-      setEditText(objPost.strText);
+      setEditText(currentPostText);
     } finally {
       setIsSubmitting(false);
     }
@@ -204,7 +205,7 @@ export default function PostEntry({
   // Handler for canceling edit
   const handleCancelEdit = () => {
     setIsEditing(false);
-    setEditText(objPost.strText);
+    setEditText(currentPostText);
   };
 
   // Handler for keyboard shortcuts in edit mode
@@ -447,7 +448,7 @@ export default function PostEntry({
         </div>
       ) : (
         <div className=" px-4 text-[15px] text-color-text-darker font-normal leading-5">
-          <HashtagText text={objPost.strText} onHashtagClick={handleHashtagClick} className="" />
+          <HashtagText text={currentPostText} onHashtagClick={handleHashtagClick} className="" />
         </div>
       )}
       
